@@ -31,8 +31,30 @@ void Replace(char* input, int length, char a, char b){
         }
     }
 }
-int CountMissingAlphabet(char* input, int length){}
-void Exchange(char* input, int length, int location){}
+int CountMissingAlphabet(char* input, int length){
+    char alphabet[]="abcdefghijklmnopqrstuvwxyz";
+    int missing=26;
+    for(int i=0;i<length;i++){
+        char a;
+        if('a'<=input[i]&&input[i]<='z'){
+            a=input[i];
+        }else if('A'<=input[i]&&input[i]<='Z'){
+            a='a'+input[i]-'A';
+        }else{
+            continue;
+        }
+        //printf("input: %c, a: %c, al[a]: %d\n", input[i], a, alphabet[a-'a']);
+        
+        if(alphabet[a-'a']!='A'){
+            alphabet[a-'a']='A';
+            missing--;
+        }
+    }
+    return missing;
+}
+void Exchange(char* input, int length, int location){
+    
+}
 
 int main(void)
 {
