@@ -90,11 +90,9 @@ int main(void) {
                     'T', 'U', 'V', 'W', 'X', 'y', '!'};
         char b[] = {'W', 'a', 's', 'e', 'd', 'a', 'U', 'n', 'i',
                     'v', 'e', 'r', 's', 'i', 't', 'y', '!'};
-        char c[] = {"abcdefghijklmnopqrstuvwxy"};
 
         printf("%d\n", CountMissingAlphabet(a, COUNTOF(a)));
         printf("%d\n", CountMissingAlphabet(b, COUNTOF(b)));
-        printf("%d\n", CountMissingAlphabet(c, COUNTOF(c)));
     }
 
     {
@@ -105,10 +103,5 @@ int main(void) {
         ShowCharArray(a, COUNTOF(a));
         Exchange(a, COUNTOF(a), 6);
         ShowCharArray(a, COUNTOF(a));
-        for (int i = 0; i <= 6; i++) {
-            char b[] = "ABCDEF";
-            Exchange(b, 6, i);
-            ShowCharArray(b, 6);
-        }
     }
 }
