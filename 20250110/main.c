@@ -24,13 +24,6 @@ double Mul(double x, double y) { return (x * y); }
 
 double Div(double x, double y) { return (x / y); }
 
-double Remainder(double x, double y) {
-    int q = (int)Div(x, y);
-    return (x - q * y);
-}
-
-double Power(double x, double y) { return pow(x, y); }
-
 // 演算子の情報
 typedef struct {
     // 演算子の記号
