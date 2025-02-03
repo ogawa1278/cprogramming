@@ -1,10 +1,12 @@
-// 	タイトル:
+// 	タイトル: 画像の圧縮
 //
-//	実装の方針:時間にかなり余裕があったので複数の方法で圧縮し比較するようにした
+//	実装の方針:
+//実行時間にかなり余裕があったので複数の方法で圧縮し比較するようにした
 //
-//	工夫した点:
+//	工夫した点: できるだけ多くの設定を保存できるように範囲を分割した
 //
-//	参考にした資料:
+//
+//	参考にした資料: なし
 //
 //
 
@@ -322,17 +324,26 @@ double CalculateQuality(const Image *a, const Image *b) {
 //	ここまで変更禁止
 //
 /////////////////////////
+
+// 色の変化のカーブ
+
+// Arctan(x-8)
 double curve0[] = {0,    0.01, 0.02, 0.03, 0.05, 0.09, 0.15, 0.26,
                    0.50, 0.74, 0.85, 0.91, 0.95, 0.97, 0.98, 0.99};
+// x
 double curve1[]
     = {0,         1.0 / 16,  2.0 / 16,  3.0 / 16, 4.0 / 16,  5.0 / 16,
        6.0 / 16,  7.0 / 16,  8.0 / 16,  9.0 / 16, 10.0 / 16, 11.0 / 16,
        12.0 / 16, 13.0 / 16, 14.0 / 16, 15.0 / 16};
-double curve2[] = {0,    0.01, 0.02, 0.03, 0.05, 0.09, 0.15, 0.26,
-                   0.50, 0.74, 0.85, 0.91, 0.95, 0.97, 0.98, 0.99};
-double curve3[] = {0,    0.01, 0.02, 0.03, 0.05, 0.09, 0.15, 0.26,
-                   0.50, 0.74, 0.85, 0.91, 0.95, 0.97, 0.98, 0.99};
-double *curves[] = {curve0, curve1, curve2, curve1};
+// x+sinx
+double curve2[] = {0,    -0.13, 0.37, 0.05, 0.18, 0.54, 0.15, 0.51,
+                   0.64, 0.31,  0.81, 0.69, 0.56, 1.06, 0.74, 0.86};
+// sin(x-8)
+double curve3[] = {0,    0.01, 0.04, 0.08, 0.15, 0.22, 0.31, 0.40,
+                   0.50, 0.60, 0.69, 0.78, 0.85, 0.92, 0.96, 0.99};
+double *curves[] = {curve0, curve1, curve2, curve3};
+
+// 16*16のタイルの描画
 void FillTile(
     const Image *new, RGB *uncompressed, int n, int m, int curven, int dir
 ) {
@@ -447,6 +458,8 @@ void FillTile(
         }
     }
 }
+
+// タイルの評価 小さいほど誤差が少ない
 int TestTile(const Image *image, const Image *new, int n, int m) {
     int score = 0;
     for (int y = n * 16; y < (n + 1) * 16; y++) {
@@ -460,44 +473,65 @@ int TestTile(const Image *image, const Image *new, int n, int m) {
     }
     return score;
 }
+
 typedef struct {
     int Score;
-    int curven;
     int color;
+    int c[20];
     unsigned char dir[300];
-
 } TestResult;
+
 RGB ATileAverage[31 * 21] = {0, 0, 0};
 RGB BTileAverage[31 * 21] = {0, 0, 0};
 RGB *Colors[] = {ATileAverage, BTileAverage};
-TestResult TestSetting(const Image *image, int color, int curven) {
-    int score = 0;
+
+// 色が決まっているときの最適解
+TestResult TestSetting(const Image *image, int color) {
+
+    // テスト用に画像を作る
     Image *test = CreateImage(IMAGE_WIDTH, IMAGE_HEIGHT);
-    int dir[300] = {0};
+
     TestResult result;
     result.color = color;
-    result.curven = curven;
     result.Score = 0;
-    for (int n = 0; n < 20; n++) {
-        for (int m = 0; m < 15; m++) {
-            FillTile(test, Colors[color], n, m * 2, curven, 0);
-            FillTile(test, Colors[color], n, m * 2 + 1, curven, 0);
-            int score0 = TestTile(image, test, n, m * 2)
-                       + TestTile(image, test, n, m * 2 + 1);
-            FillTile(test, Colors[color], n, m * 2, curven, 1);
-            FillTile(test, Colors[color], n, m * 2 + 1, curven, 1);
-            int score1 = TestTile(image, test, n, m * 2)
-                       + TestTile(image, test, n, m * 2 + 1);
-            if (score0 < score1) {
-                result.Score += score0;
-                result.dir[n * 15 + m] = 0;
-            } else {
-                result.Score += score1;
-                result.dir[n * 15 + m] = 1;
+
+    // 96*80=(16*16)*6*5ごとにカーブを設定する
+    for (int a = 0; a < 4; a++) {
+        for (int b = 0; b < 5; b++) {
+            int cbestscore = -1;
+            int cbest = 0;
+            for (int c = 0; c < 4; c++) {
+                int cscore = 0;
+                for (int n = a * 5; n < (a + 1) * 5; n++) {
+                    for (int m = b * 3; m < (b + 1) * 3; m++) {
+                        FillTile(test, Colors[color], n, m * 2, c, 0);
+                        FillTile(test, Colors[color], n, m * 2 + 1, c, 0);
+                        int score0 = TestTile(image, test, n, m * 2)
+                                   + TestTile(image, test, n, m * 2 + 1);
+                        FillTile(test, Colors[color], n, m * 2, c, 1);
+                        FillTile(test, Colors[color], n, m * 2 + 1, c, 1);
+                        int score1 = TestTile(image, test, n, m * 2)
+                                   + TestTile(image, test, n, m * 2 + 1);
+                        if (score0 < score1) {
+                            FillTile(test, Colors[color], n, m * 2, c, 0);
+                            FillTile(test, Colors[color], n, m * 2 + 1, c, 0);
+                            cscore += score0;
+                            result.dir[n * 15 + m] = 0;
+                        } else {
+                            cscore += score1;
+                            result.dir[n * 15 + m] = 1;
+                        }
+                    }
+                }
+                if (cbestscore == -1 || cscore < cbestscore) {
+                    cbestscore = cscore;
+                    cbest = c;
+                }
             }
+            result.Score += cbestscore;
+            result.c[a * 5 + b] = cbest;
         }
     }
-    /* printf("%f ", CalculateQuality(image, test)); */
     DestroyImage(test);
     return result;
 }
@@ -505,6 +539,7 @@ TestResult TestSetting(const Image *image, int color, int curven) {
 /// @param image 画像（480x320）
 /// @param compressed 圧縮したデータを格納する配列（1024 バイト）
 void CompressImage(const Image *image, unsigned char *compressed) {
+    // 2種類の平均値の配列を作る
     for (int y = 0; y < IMAGE_HEIGHT; y++) {
         for (int x = 0; x < IMAGE_WIDTH; x++) {
             RGB pixel = image->pixels[y * IMAGE_WIDTH + x];
@@ -520,7 +555,6 @@ void CompressImage(const Image *image, unsigned char *compressed) {
             }
         }
     }
-    //
     for (int i = 0; i < 31 * 21; i++) {
         int k = 256;
         if (i % 31 == 0 || i % 31 == 30) {
@@ -537,30 +571,21 @@ void CompressImage(const Image *image, unsigned char *compressed) {
         BTileAverage[i].g = BTileAverage[i].g / 16 / (k / 4);
         BTileAverage[i].b = BTileAverage[i].b / 16 / (k / 4);
     }
-    TestResult result[8];
+
+    // 設定を変えながら比較
+    TestResult result[2];
     int bestresult = 0;
     for (int color = 0; color < 2; color++) {
-        for (int curven = 0; curven < 2; curven++) {
-            result[color * 4 + curven] = TestSetting(image, color, curven);
-            printf(
-                "%d %d %d\n", result[color * 4 + curven].Score,
-                result[color * 4 + curven].color,
-                result[color * 4 + curven].curven
-            );
-            if (result[color * 4 + curven].Score < result[bestresult].Score) {
-                bestresult = color * 4 + curven;
-            }
+        result[color] = TestSetting(image, color);
+        if (result[color].Score < result[bestresult].Score) {
+            bestresult = color;
         }
     }
 
+    // 圧縮
+    // RGB*31*21, 方向*300, カーブ*20の順に配置
     compressed[0] = bestresult;
     RGB *color = Colors[result[bestresult].color];
-    /* for (int i = 300; i < 600; i++) { */
-    /*     printf( */
-    /*         "%c %c %c, ", color[i].r + '0', color[i].g + '0', color[i].b +
-     * '0' */
-    /*     ); */
-    /* } */
     for (int i = 0; i < 325; i++) {
         compressed[i * 3 + 1] = color[i * 2].r * 16 + color[i * 2].g;
         compressed[i * 3 + 2] = color[i * 2].b * 16 + color[i * 2 + 1].r;
@@ -577,16 +602,19 @@ void CompressImage(const Image *image, unsigned char *compressed) {
                             + dir[i * 8 + 8] * 8 + dir[i * 8 + 9] * 4
                             + dir[i * 8 + 10] * 2 + dir[i * 8 + 11];
     }
-    /* for (int i = 0; i < 300; i++) { */
-    /*     printf("%d", dir[i]); */
-    /* } */
-    puts("\n");
+
+    int *c = result[bestresult].c;
+    for (int i = 0; i < 5; i++) {
+        compressed[i + 1015] = c[i * 4 + 0] * 64 + c[i * 4 + 1] * 16
+                             + c[i * 4 + 2] * 4 + c[i * 4 + 3];
+    }
 }
 
 /// @brief 画像を展開します。
 /// @param compressed 圧縮されたデータ（1024 バイト）
 /// @param image 画像（480x320）
 void DecompressImage(const unsigned char *compressed, Image *image) {
+    // 展開
     RGB color[31 * 21];
     for (int i = 0; i < 325; i++) {
         color[i * 2].r = compressed[i * 3 + 1] / 16;
@@ -599,12 +627,6 @@ void DecompressImage(const unsigned char *compressed, Image *image) {
     color[650].r = compressed[976] / 16;
     color[650].g = compressed[976] % 16;
     color[650].b = compressed[977] / 16;
-    /* for (int i = 300; i < 600; i++) { */
-    /*     printf( */
-    /*         "%c %c %c, ", color[i].r + '0', color[i].g + '0', color[i].b +
-     * '0' */
-    /*     ); */
-    /* } */
 
     unsigned char dir[300];
     dir[0] = compressed[977] % 16 / 8;
@@ -621,18 +643,22 @@ void DecompressImage(const unsigned char *compressed, Image *image) {
         dir[i * 8 + 10] = compressed[i + 978] % 4 / 2;
         dir[i * 8 + 11] = compressed[i + 978] % 2;
     }
-    /* for (int i = 0; i < 300; i++) { */
-    /*     printf("%d", dir[i]); */
-    /* } */
-    /* puts("\n"); */
-    int set = compressed[0];
-    /* bestresult = color * 4 + curven; */
+    unsigned char c[20];
+    for (int i = 0; i < 5; i++) {
+        c[i * 4] = compressed[1015 + i] / 64;
+        c[i * 4 + 1] = compressed[1015 + i] % 64 / 16;
+        c[i * 4 + 2] = compressed[1015 + i] % 16 / 4;
+        c[i * 4 + 3] = compressed[1015 + i] % 4;
+    }
+
+    // 描画
     for (int n = 0; n < 20; n++) {
         for (int m = 0; m < 30; m++) {
-            FillTile(image, color, n, m, set % 4, dir[n * 15 + m / 2]);
+            FillTile(
+                image, color, n, m, c[n / 5 * 5 + m / 6], dir[n * 15 + m / 2]
+            );
         }
     }
-    /* printf("%d %d\n", set / 4, set % 4); */
 }
 
 /////////////////////////
