@@ -1,7 +1,7 @@
 // 	タイトル: 画像の圧縮
 //
 //	実装の方針:
-//実行時間にかなり余裕があったので複数の方法で圧縮し比較するようにした
+// 実行時間にかなり余裕があったので複数の方法で圧縮し比較するようにした
 //
 //	工夫した点: できるだけ多くの設定を保存できるように範囲を分割した
 //
@@ -481,8 +481,8 @@ typedef struct {
     unsigned char dir[300];
 } TestResult;
 
-RGB ATileAverage[31 * 21] = {0, 0, 0};
-RGB BTileAverage[31 * 21] = {0, 0, 0};
+RGB ATileAverage[31 * 21] = {{0, 0, 0}};
+RGB BTileAverage[31 * 21] = {{0, 0, 0}};
 RGB *Colors[] = {ATileAverage, BTileAverage};
 
 // 色が決まっているときの最適解
