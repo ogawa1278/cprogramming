@@ -1,6 +1,6 @@
 // 	タイトル:
 //
-//	実装の方針:
+//	実装の方針:時間にかなり余裕があったので複数の方法で圧縮し比較するようにした
 //
 //	工夫した点:
 //
@@ -322,83 +322,317 @@ double CalculateQuality(const Image *a, const Image *b) {
 //	ここまで変更禁止
 //
 /////////////////////////
+double curve0[] = {0,    0.01, 0.02, 0.03, 0.05, 0.09, 0.15, 0.26,
+                   0.50, 0.74, 0.85, 0.91, 0.95, 0.97, 0.98, 0.99};
+double curve1[]
+    = {0,         1.0 / 16,  2.0 / 16,  3.0 / 16, 4.0 / 16,  5.0 / 16,
+       6.0 / 16,  7.0 / 16,  8.0 / 16,  9.0 / 16, 10.0 / 16, 11.0 / 16,
+       12.0 / 16, 13.0 / 16, 14.0 / 16, 15.0 / 16};
+double curve2[] = {0,    0.01, 0.02, 0.03, 0.05, 0.09, 0.15, 0.26,
+                   0.50, 0.74, 0.85, 0.91, 0.95, 0.97, 0.98, 0.99};
+double curve3[] = {0,    0.01, 0.02, 0.03, 0.05, 0.09, 0.15, 0.26,
+                   0.50, 0.74, 0.85, 0.91, 0.95, 0.97, 0.98, 0.99};
+double *curves[] = {curve0, curve1, curve2, curve1};
+void FillTile(
+    const Image *new, RGB *uncompressed, int n, int m, int curven, int dir
+) {
+    double *curve = curves[curven];
+    RGB *pixels = new->pixels;
+    if (dir == 1) {
+        for (int y = 0; y < 16; y++) {
+            for (int x = 0; x < y; x++) {
+                RGB *pixel = &pixels[(n * 16 + y) * IMAGE_WIDTH + (m * 16 + x)];
+                pixel->r
+                    = (int)((uncompressed[n * 31 + m].r * 16 + 8)
+                                * (1 - curve[y])
+                            + curve[x]
+                                  * (uncompressed[(n + 1) * 31 + m + 1].r * 16
+                                     + 8)
+                            + (-curve[x] + curve[y]
+                              ) * (uncompressed[(n + 1) * 31 + m].r * 16 + 8));
+                pixel->g
+                    = ((uncompressed[n * 31 + m].g * 16 + 8) * (1 - curve[y])
+                       + curve[x]
+                             * (uncompressed[(n + 1) * 31 + m + 1].g * 16 + 8)
+                       + (-curve[x] + curve[y])
+                             * (uncompressed[(n + 1) * 31 + m].g * 16 + 8));
+                pixel->b
+                    = ((uncompressed[n * 31 + m].b * 16 + 8) * (1 - curve[y])
+                       + curve[x]
+                             * (uncompressed[(n + 1) * 31 + m + 1].b * 16 + 8)
+                       + (-curve[x] + curve[y])
+                             * (uncompressed[(n + 1) * 31 + m].b * 16 + 8));
+            }
+            for (int x = y; x < 16; x++) {
+                RGB *pixel = &pixels[(n * 16 + y) * IMAGE_WIDTH + (m * 16 + x)];
+                pixel->r
+                    = (int)((uncompressed[n * 31 + m].r * 16 + 8)
+                                * (1 - curve[x])
+                            + curve[y]
+                                  * (uncompressed[(n + 1) * 31 + m + 1].r * 16
+                                     + 8)
+                            + (curve[x] - curve[y])
+                                  * (uncompressed[n * 31 + m + 1].r * 16 + 8));
+                pixel->g
+                    = (int)((uncompressed[n * 31 + m].g * 16 + 8)
+                                * (1 - curve[x])
+                            + curve[y]
+                                  * (uncompressed[(n + 1) * 31 + m + 1].g * 16
+                                     + 8)
+                            + (curve[x] - curve[y])
+                                  * (uncompressed[n * 31 + m + 1].g * 16 + 8));
+                pixel->b
+                    = (int)((uncompressed[n * 31 + m].b * 16 + 8)
+                                * (1 - curve[x])
+                            + curve[y]
+                                  * (uncompressed[(n + 1) * 31 + m + 1].b * 16
+                                     + 8)
+                            + (curve[x] - curve[y])
+                                  * (uncompressed[n * 31 + m + 1].b * 16 + 8));
+            }
+        }
+    } else {
+        for (int y = 0; y < 16; y++) {
+            for (int x = 0; x < 16 - y; x++) {
+                RGB *pixel = &pixels[(n * 16 + y) * IMAGE_WIDTH + (m * 16 + x)];
+                pixel->r
+                    = (int)((uncompressed[n * 31 + m].r * 16 + 8)
+                                * (1 - curve[x] - curve[y])
+                            + curve[y]
+                                  * (uncompressed[(n + 1) * 31 + m].r * 16 + 8)
+                            + curve[x]
+                                  * (uncompressed[(n * 31 + m + 1)].r * 16 + 8)
+                    );
+                pixel->g
+                    = (int)((uncompressed[n * 31 + m].g * 16 + 8)
+                                * (1 - curve[x] - curve[y])
+                            + curve[y]
+                                  * (uncompressed[(n + 1) * 31 + m].g * 16 + 8)
+                            + curve[x]
+                                  * (uncompressed[(n * 31 + m + 1)].g * 16 + 8)
+                    );
+                pixel->b
+                    = (int)((uncompressed[n * 31 + m].b * 16 + 8)
+                                * (1 - curve[x] - curve[y])
+                            + curve[y]
+                                  * (uncompressed[(n + 1) * 31 + m].b * 16 + 8)
+                            + curve[x]
+                                  * (uncompressed[(n * 31 + m + 1)].b * 16 + 8)
+                    );
+            }
+            for (int x = 16 - y; x < 16; x++) {
+                RGB *pixel = &pixels[(n * 16 + y) * IMAGE_WIDTH + (m * 16 + x)];
+                pixel->r
+                    = (int)((uncompressed[(n + 1) * 31 + m + 1].r * 16 + 8)
+                                * (-1 + curve[x] + curve[y])
+                            + (1 - curve[x])
+                                  * (uncompressed[(n + 1) * 31 + m].r * 16 + 8)
+                            + (1 - curve[y]
+                              ) * (uncompressed[(n * 31 + m + 1)].r * 16 + 8));
+                pixel->g
+                    = (int)((uncompressed[(n + 1) * 31 + m + 1].g * 16 + 8)
+                                * (-1 + curve[x] + curve[y])
+                            + (1 - curve[x])
+                                  * (uncompressed[(n + 1) * 31 + m].g * 16 + 8)
+                            + (1 - curve[y]
+                              ) * (uncompressed[(n * 31 + m + 1)].g * 16 + 8));
+                pixel->b
+                    = (int)((uncompressed[(n + 1) * 31 + m + 1].b * 16 + 8)
+                                * (-1 + curve[x] + curve[y])
+                            + (1 - curve[x])
+                                  * (uncompressed[(n + 1) * 31 + m].b * 16 + 8)
+                            + (1 - curve[y]
+                              ) * (uncompressed[(n * 31 + m + 1)].b * 16 + 8));
+            }
+        }
+    }
+}
+int TestTile(const Image *image, const Image *new, int n, int m) {
+    int score = 0;
+    for (int y = n * 16; y < (n + 1) * 16; y++) {
+        for (int x = m * 16; x < (m + 1) * 16; x++) {
+            RGB *ref = &image->pixels[y * IMAGE_WIDTH + x];
+            RGB *pixel = &new->pixels[y * IMAGE_WIDTH + x];
+            score += abs(ref->r - pixel->r);
+            score += abs(ref->g - pixel->g);
+            score += abs(ref->b - pixel->b);
+        }
+    }
+    return score;
+}
 typedef struct {
-    int r;
-    int g;
-    int b;
-} RGB12;
+    int Score;
+    int curven;
+    int color;
+    unsigned char dir[300];
 
-void AddRGBtoSum(RGB *a, RGB *sum) {
-    sum->r += a->r;
-    sum->g += a->g;
-    sum->b += a->b;
+} TestResult;
+RGB ATileAverage[31 * 21] = {0, 0, 0};
+RGB BTileAverage[31 * 21] = {0, 0, 0};
+RGB *Colors[] = {ATileAverage, BTileAverage};
+TestResult TestSetting(const Image *image, int color, int curven) {
+    int score = 0;
+    Image *test = CreateImage(IMAGE_WIDTH, IMAGE_HEIGHT);
+    int dir[300] = {0};
+    TestResult result;
+    result.color = color;
+    result.curven = curven;
+    result.Score = 0;
+    for (int n = 0; n < 20; n++) {
+        for (int m = 0; m < 15; m++) {
+            FillTile(test, Colors[color], n, m * 2, curven, 0);
+            FillTile(test, Colors[color], n, m * 2 + 1, curven, 0);
+            int score0 = TestTile(image, test, n, m * 2)
+                       + TestTile(image, test, n, m * 2 + 1);
+            FillTile(test, Colors[color], n, m * 2, curven, 1);
+            FillTile(test, Colors[color], n, m * 2 + 1, curven, 1);
+            int score1 = TestTile(image, test, n, m * 2)
+                       + TestTile(image, test, n, m * 2 + 1);
+            if (score0 < score1) {
+                result.Score += score0;
+                result.dir[n * 15 + m] = 0;
+            } else {
+                result.Score += score1;
+                result.dir[n * 15 + m] = 1;
+            }
+        }
+    }
+    /* printf("%f ", CalculateQuality(image, test)); */
+    DestroyImage(test);
+    return result;
 }
 /// @brief 画像を圧縮します。
 /// @param image 画像（480x320）
 /// @param compressed 圧縮したデータを格納する配列（1024 バイト）
 void CompressImage(const Image *image, unsigned char *compressed) {
-    // 仮実装: 画像の内容を確認する
-    /* for (int y = 0; y < IMAGE_HEIGHT; ++y) { */
-    /*     for (int x = 0; x < IMAGE_WIDTH; ++x) { */
-    /*         // const RGB pixel = image->pixels[(y * IMAGE_WIDTH) + x]; */
-    /*     } */
-    /* } */
-    /**/
-    /* // 仮実装: 適当なデータを格納する */
-    /* for (int i = 0; i < BUFFER_SIZE; ++i) { */
-    /*     compressed[i] = (i % 256); */
-    /* } */
-    RGB tilesum[30 * 20] = {0, 0, 0};
-    // 16*16のタイルごとにRGBの平均をとる
     for (int y = 0; y < IMAGE_HEIGHT; y++) {
         for (int x = 0; x < IMAGE_WIDTH; x++) {
             RGB pixel = image->pixels[y * IMAGE_WIDTH + x];
-            tilesum[(y / 16) * 30 + x / 16].r += pixel.r;
-            tilesum[(y / 16) * 30 + x / 16].g += pixel.g;
-            tilesum[(y / 16) * 30 + x / 16].b += pixel.b;
-            /* AddRGBtoSum(pixel, &tilesum[]); */
+            int i = (y + 8) / 16 * 31 + (x + 8) / 16;
+            ATileAverage[i].r += pixel.r;
+            ATileAverage[i].g += pixel.g;
+            ATileAverage[i].b += pixel.b;
+
+            if (((x + 4) / 8) % 2 == 0 && ((y + 4) / 8) % 2 == 0) {
+                BTileAverage[i].r += pixel.r;
+                BTileAverage[i].g += pixel.g;
+                BTileAverage[i].b += pixel.b;
+            }
         }
     }
     //
-    for (int i = 0; i < 30 * 20; i++) {
-        tilesum[i].r = tilesum[i].r / 256 / 16;
-        tilesum[i].g = tilesum[i].g / 256 / 16;
-        tilesum[i].b = tilesum[i].b / 256 / 16;
-        /* printf("%d %d %d, ", tilesum[i].r, tilesum[i].g, tilesum[i].b); */
+    for (int i = 0; i < 31 * 21; i++) {
+        int k = 256;
+        if (i % 31 == 0 || i % 31 == 30) {
+            k = k / 2;
+        }
+        if (i / 31 == 0 || i / 31 == 20) {
+            k = k / 2;
+        }
+        ATileAverage[i].r = ATileAverage[i].r / 16 / k;
+        ATileAverage[i].g = ATileAverage[i].g / 16 / k;
+        ATileAverage[i].b = ATileAverage[i].b / 16 / k;
+
+        BTileAverage[i].r = BTileAverage[i].r / 16 / (k / 4);
+        BTileAverage[i].g = BTileAverage[i].g / 16 / (k / 4);
+        BTileAverage[i].b = BTileAverage[i].b / 16 / (k / 4);
     }
-    printf("\n");
-    for (int i = 0; i < 300; i++) {
-        compressed[i * 3] = tilesum[i * 2].r * 16 + tilesum[i * 2].g;
-        compressed[i * 3 + 1] = tilesum[i * 2].b * 16 + tilesum[i * 2 + 1].r;
-        compressed[i * 3 + 2]
-            = tilesum[i * 2 + 1].g * 16 + tilesum[i * 2 + 1].b;
+    TestResult result[8];
+    int bestresult = 0;
+    for (int color = 0; color < 2; color++) {
+        for (int curven = 0; curven < 2; curven++) {
+            result[color * 4 + curven] = TestSetting(image, color, curven);
+            printf(
+                "%d %d %d\n", result[color * 4 + curven].Score,
+                result[color * 4 + curven].color,
+                result[color * 4 + curven].curven
+            );
+            if (result[color * 4 + curven].Score < result[bestresult].Score) {
+                bestresult = color * 4 + curven;
+            }
+        }
     }
-    for (int i = 0; i < 900; i++) {
-        /* compressed[i] = 12 * 16 + 2; */
+
+    compressed[0] = bestresult;
+    RGB *color = Colors[result[bestresult].color];
+    /* for (int i = 300; i < 600; i++) { */
+    /*     printf( */
+    /*         "%c %c %c, ", color[i].r + '0', color[i].g + '0', color[i].b +
+     * '0' */
+    /*     ); */
+    /* } */
+    for (int i = 0; i < 325; i++) {
+        compressed[i * 3 + 1] = color[i * 2].r * 16 + color[i * 2].g;
+        compressed[i * 3 + 2] = color[i * 2].b * 16 + color[i * 2 + 1].r;
+        compressed[i * 3 + 3] = color[i * 2 + 1].g * 16 + color[i * 2 + 1].b;
     }
+    compressed[976] = color[650].r * 16 + color[650].g;
+    compressed[977] = color[650].b * 16;
+
+    unsigned char *dir = result[bestresult].dir;
+    compressed[977] += dir[0] * 8 + dir[1] * 4 + dir[2] * 2 + dir[3];
+    for (int i = 0; i < 37; i++) {
+        compressed[i + 978] = dir[i * 8 + 4] * 128 + dir[i * 8 + 5] * 64
+                            + dir[i * 8 + 6] * 32 + dir[i * 8 + 7] * 16
+                            + dir[i * 8 + 8] * 8 + dir[i * 8 + 9] * 4
+                            + dir[i * 8 + 10] * 2 + dir[i * 8 + 11];
+    }
+    /* for (int i = 0; i < 300; i++) { */
+    /*     printf("%d", dir[i]); */
+    /* } */
+    puts("\n");
 }
 
 /// @brief 画像を展開します。
 /// @param compressed 圧縮されたデータ（1024 バイト）
 /// @param image 画像（480x320）
 void DecompressImage(const unsigned char *compressed, Image *image) {
-    RGB uncompressed[900];
-    for (int i = 0; i < 300; i++) {
-        uncompressed[i * 2].r = compressed[i * 3] / 16;
-        uncompressed[i * 2].g = compressed[i * 3] % 16;
-        uncompressed[i * 2].b = compressed[i * 3 + 1] / 16;
-        uncompressed[i * 2 + 1].r = compressed[i * 3 + 1] % 16;
-        uncompressed[i * 2 + 1].g = compressed[i * 3 + 2] / 16;
-        uncompressed[i * 2 + 1].b = compressed[i * 3 + 2] % 16;
+    RGB color[31 * 21];
+    for (int i = 0; i < 325; i++) {
+        color[i * 2].r = compressed[i * 3 + 1] / 16;
+        color[i * 2].g = compressed[i * 3 + 1] % 16;
+        color[i * 2].b = compressed[i * 3 + 2] / 16;
+        color[i * 2 + 1].r = compressed[i * 3 + 2] % 16;
+        color[i * 2 + 1].g = compressed[i * 3 + 3] / 16;
+        color[i * 2 + 1].b = compressed[i * 3 + 3] % 16;
     }
-    for (int y = 0; y < IMAGE_HEIGHT; ++y) {
-        for (int x = 0; x < IMAGE_WIDTH; ++x) {
-            RGB *pixel = &image->pixels[y * IMAGE_WIDTH + x];
-            pixel->r = uncompressed[(y / 16) * 30 + x / 16].r * 16 + 8;
-            pixel->g = uncompressed[(y / 16) * 30 + x / 16].g * 16 + 8;
-            pixel->b = uncompressed[(y / 16) * 30 + x / 16].b * 16 + 8;
+    color[650].r = compressed[976] / 16;
+    color[650].g = compressed[976] % 16;
+    color[650].b = compressed[977] / 16;
+    /* for (int i = 300; i < 600; i++) { */
+    /*     printf( */
+    /*         "%c %c %c, ", color[i].r + '0', color[i].g + '0', color[i].b +
+     * '0' */
+    /*     ); */
+    /* } */
+
+    unsigned char dir[300];
+    dir[0] = compressed[977] % 16 / 8;
+    dir[1] = compressed[977] % 8 / 4;
+    dir[2] = compressed[977] % 4 / 2;
+    dir[3] = compressed[977] % 2;
+    for (int i = 0; i < 37; i++) {
+        dir[i * 8 + 4] = compressed[i + 978] / 128;
+        dir[i * 8 + 5] = compressed[i + 978] % 128 / 64;
+        dir[i * 8 + 6] = compressed[i + 978] % 64 / 32;
+        dir[i * 8 + 7] = compressed[i + 978] % 32 / 16;
+        dir[i * 8 + 8] = compressed[i + 978] % 16 / 8;
+        dir[i * 8 + 9] = compressed[i + 978] % 8 / 4;
+        dir[i * 8 + 10] = compressed[i + 978] % 4 / 2;
+        dir[i * 8 + 11] = compressed[i + 978] % 2;
+    }
+    /* for (int i = 0; i < 300; i++) { */
+    /*     printf("%d", dir[i]); */
+    /* } */
+    /* puts("\n"); */
+    int set = compressed[0];
+    /* bestresult = color * 4 + curven; */
+    for (int n = 0; n < 20; n++) {
+        for (int m = 0; m < 30; m++) {
+            FillTile(image, color, n, m, set % 4, dir[n * 15 + m / 2]);
         }
     }
+    /* printf("%d %d\n", set / 4, set % 4); */
 }
 
 /////////////////////////
